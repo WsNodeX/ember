@@ -1,0 +1,2 @@
+# Ember has zero runtime dependencies.
+# The standard library is all you need.
