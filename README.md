@@ -89,6 +89,23 @@ Every operation is gradient-checked against central finite differences
 (`tests/utils.py`). If a backward pass is wrong, a test fails — that is the whole
 verification story, and it is why the engine is trustworthy enough to learn from.
 
+## Benchmark
+
+`benchmark.py` trains the same 1-16-1 ReLU MLP with both engines — identical
+weights, identical data, identical updates — and times them. Real output
+(Python 3.13.0, NumPy 2.2.5):
+
+```text
+engine     time   final loss
+ember      0.64s     0.057455
+numpy      0.01s     0.057455
+```
+
+NumPy is ~110× faster here, and that gap is the honest price of pure-Python
+loops. The part that matters is the loss column: both engines reach the same
+value to six decimal places, because they are running the same math. NumPy is
+only needed for the baseline column — Ember itself installs nothing.
+
 ## Limitations
 
 - **Pure Python loops.** No NumPy, so matmul is a triple nested loop. It is slow,
