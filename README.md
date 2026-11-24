@@ -1,5 +1,5 @@
 <p align="center">
-  <em>A PyTorch-shaped framework in 1,135 lines of pure Python. No NumPy, no pip install.</em>
+  <em>A PyTorch-shaped framework in 1,450 lines of pure Python. No NumPy, no pip install.</em>
 </p>
 
 <p align="center">
@@ -19,6 +19,9 @@ graph LR
   B -->|backward| C[gradients]
   C -->|SGD| A
 ```
+
+**Live demo:** <https://wsnodex.github.io/ember/> trains the XOR network in your
+browser tab — the real library running under Pyodide, not a recording.
 
 ## Quick start
 
