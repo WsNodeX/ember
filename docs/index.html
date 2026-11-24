@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ember — reverse-mode autograd in pure Python</title>
+<meta name="description" content="A from-scratch autograd engine and neural-network library in pure Python. Zero dependencies. Train a network in your browser to see it work.">
+<meta property="og:title" content="ember — reverse-mode autograd in pure Python">
+<meta property="og:description" content="A from-scratch autograd engine and neural-network library in pure Python. Zero dependencies.">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    --paper: #fdfcfa;
+    --ink: #16130f;
+    --ink-2: #55504a;
+    --ink-3: #8b847b;
+    --rule: #e6e0d8;
+    --accent: #c2410c;
+    --panel: #ffffff;
+    --code-bg: #17140f;
+    --code-ink: #e8e2d8;
+    --code-dim: #8a8279;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.65 var(--sans);
+    text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* header */
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; padding: 28px 0 0; flex-wrap: wrap;
+  }
+  .brand { font-family: var(--mono); font-size: 15px; letter-spacing: .02em; }
+  .brand b { font-weight: 600; }
+  .brand span { color: var(--ink-3); }
+  nav { display: flex; gap: 20px; font-family: var(--mono); font-size: 13px; }
+  nav a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* hero */
+  .hero { padding: 64px 0 40px; border-bottom: 1px solid var(--rule); }
+  h1 {
+    margin: 0 0 20px; font-size: clamp(30px, 5vw, 46px); line-height: 1.15;
+    letter-spacing: -.02em; font-weight: 600; max-width: 18em;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lede { margin: 0; max-width: 44em; font-size: 17px; color: var(--ink-2); }
+  .lede code { font-family: var(--mono); font-size: .9em; background: #f1ece4; padding: 1px 5px; border-radius: 3px; }
+
+  /* demo */
+  .demo { padding: 44px 0 8px; }
+  .demo-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  h2 { font-size: 13px; font-family: var(--mono); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0; }
+  .status { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+  .status.err { color: #b42318; }
+
+  .bench {
+    display: grid; grid-template-columns: 1.05fr 1fr; gap: 18px;
+    align-items: stretch;
+  }
+  @media (max-width: 820px) { .bench { grid-template-columns: 1fr; } }
+
+  .pane { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+  .pane-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-3); padding: 10px 14px; border-bottom: 1px solid var(--rule);
+    display: flex; justify-content: space-between; gap: 12px;
+  }
+  pre.code {
+    margin: 0; padding: 16px 14px; overflow: auto; max-height: 430px;
+    background: var(--code-bg); color: var(--code-ink);
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+    flex: 1; tab-size: 4;
+  }
+  pre.code .k { color: #ff9d6b; }
+  pre.code .c { color: var(--code-dim); font-style: italic; }
+  pre.code .s { color: #a8d08d; }
+  .chartbox { padding: 12px 14px 6px; }
+  canvas { display: block; width: 100%; height: 200px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); }
+  .stat { padding: 12px 14px; border-right: 1px solid var(--rule); }
+  .stat:last-child { border-right: 0; }
+  .stat .k2 { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+  .stat .v { font-family: var(--mono); font-size: 20px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  .runrow { padding: 12px 14px; border-top: 1px solid var(--rule); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button {
+    font: inherit; font-family: var(--mono); font-size: 13px;
+    background: var(--ink); color: #fff; border: 0; border-radius: 5px;
+    padding: 9px 16px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--accent); }
+  button:disabled { background: #cfc8bd; cursor: default; }
+  .runrow .hint { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+
+  .out { padding: 0 14px 14px; }
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--rule); }
+  th { color: var(--ink-3); font-weight: 500; font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; }
+  td { font-variant-numeric: tabular-nums; }
+  .ok { color: #1a7f37; }
+  .bad { color: #b42318; }
+  .log { margin: 10px 0 0; font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); line-height: 1.5; white-space: pre-wrap; max-height: 96px; overflow: auto; }
+
+  /* notes */
+  .notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; padding: 56px 0; border-top: 1px solid var(--rule); margin-top: 44px; }
+  @media (max-width: 760px) { .notes { grid-template-columns: 1fr; gap: 22px; } }
+  .notes h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+  .notes p { margin: 0; font-size: 14px; color: var(--ink-2); }
+  .notes code { font-family: var(--mono); font-size: .88em; }
+
+  /* install */
+  .install { border-top: 1px solid var(--rule); padding-top: 40px; }
+  .install p { color: var(--ink-2); font-size: 14.5px; margin: 10px 0 14px; max-width: 46em; }
+  pre.shell {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 8px;
+    padding: 16px; font-family: var(--mono); font-size: 13px; line-height: 1.7;
+    overflow: auto; margin: 0;
+  }
+  pre.shell .c { color: var(--code-dim); }
+
+  footer { border-top: 1px solid var(--rule); margin-top: 48px; padding-top: 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+  footer a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  footer a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand"><b>ember</b> <span>· v1.0.0</span></div>
+    <nav>
+      <a href="https://github.com/WsNodeX/ember">github</a>
+      <a href="https://github.com/WsNodeX/ember#readme">readme</a>
+      <a href="https://github.com/WsNodeX/ember/blob/main/LICENSE">mit</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <h1>Reverse-mode autograd, written in the language you already know. <em>Zero dependencies.</em></h1>
+    <p class="lede">
+      Ember is a from-scratch automatic-differentiation engine and neural-network library:
+      differentiable tensors, layers, activations, losses, an SGD optimizer and a data loader,
+      built on the Python standard library alone — no NumPy, no <code>pip install</code>.
+      Every operation's forward math and its backward rule sit next to each other in one file,
+      so <code>.backward()</code> stops being magic.
+    </p>
+  </section>
+
+  <section class="demo">
+    <div class="demo-head">
+      <h2>Live — real Ember, running in this tab</h2>
+      <div class="status" id="status">starting Python runtime…</div>
+    </div>
+
+    <div class="bench">
+      <div class="pane">
+        <div class="pane-label"><span>docs/demo_script.py</span><span>this exact file is executed</span></div>
+        <pre class="code" id="code"><code>loading…</code></pre>
+      </div>
+
+      <div class="pane">
+        <div class="pane-label"><span>cross-entropy loss</span><span id="scale-label">log scale</span></div>
+        <div class="chartbox"><canvas id="chart" width="920" height="400"></canvas></div>
+        <div class="stats">
+          <div class="stat"><div class="k2">epoch</div><div class="v" id="s-epoch">0</div></div>
+          <div class="stat"><div class="k2">loss</div><div class="v" id="s-loss">—</div></div>
+          <div class="stat"><div class="k2">accuracy</div><div class="v" id="s-acc">—</div></div>
+        </div>
+        <div class="runrow">
+          <button id="run" disabled>Waiting for runtime…</button>
+          <span class="hint">2 inputs → 8 tanh → 2 classes, SGD lr=0.1</span>
+        </div>
+        <div class="out">
+          <table id="pred" hidden>
+            <thead><tr><th>input</th><th>p(class 0)</th><th>p(class 1)</th><th>predicted</th><th>truth</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="notes">
+    <div>
+      <h3>A graph, walked backwards</h3>
+      <p>Every tensor keeps the operation that produced it and the inputs it came from. <code>backward()</code> sorts the graph topologically, seeds the output gradient with one, and applies each rule in reverse — accumulating where branches meet.</p>
+    </div>
+    <div>
+      <h3>Checked against finite differences</h3>
+      <p>Each backward rule is verified numerically against central differences of the forward pass. If a gradient is wrong, a test fails; that is why the small numbers above can be trusted.</p>
+    </div>
+    <div>
+      <h3>Read it in one sitting</h3>
+      <p>No C extensions, no generated code, no layers of abstraction. The whole engine is plain Python files you can open in an editor and follow from <code>Tensor</code> to loss to update.</p>
+    </div>
+  </section>
+
+  <section class="install">
+    <h2>Run it locally</h2>
+    <p>Ember needs nothing but a Python interpreter — there is no install step. The two example programs run the same code paths this page just exercised.</p>
+<pre class="shell"><span class="c"># no install step — the library is the source tree</span>
+git clone https://github.com/WsNodeX/ember &amp;&amp; cd ember
+python examples/fit_linear.py    <span class="c"># recover y = 3x + 2 by gradient descent</span>
+python examples/xor_mlp.py       <span class="c"># the network training in the panel above</span>
+python docs/demo_script.py       <span class="c"># exactly the file this page executed</span></pre>
+  </section>
+
+  <footer>
+    <span>MIT · pure Python · zero runtime dependencies</span>
+    <span><a href="https://github.com/WsNodeX/ember">github.com/WsNodeX/ember</a></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PYODIDE = "0.26.4";
+  // Two mirrors, tried in order. Both serve the same pinned build.
+  var MIRRORS = [
+    { js: "https://unpkg.com/pyodide@" + PYODIDE + "/pyodide.js",
+      index: "https://unpkg.com/pyodide@" + PYODIDE + "/" },
+    { js: "https://cdn.jsdelivr.net/pyodide/v" + PYODIDE + "/full/pyodide.js",
+      index: "https://cdn.jsdelivr.net/pyodide/v" + PYODIDE + "/full/" }
+  ];
+  var TOTAL_EPOCHS = 1500;
+  var CHUNK = 50;
+
+  var el = {
+    status: document.getElementById("status"),
+    code: document.getElementById("code"),
+    run: document.getElementById("run"),
+    epoch: document.getElementById("s-epoch"),
+    loss: document.getElementById("s-loss"),
+    acc: document.getElementById("s-acc"),
+    pred: document.getElementById("pred"),
+    log: document.getElementById("log"),
+    canvas: document.getElementById("chart")
+  };
+
+  var pyodide = null;
+  var scriptText = "";
+  var globals = null;
+  var curve = [];
+  var busy = false;
+
+  function setStatus(text, isError) {
+    el.status.textContent = text;
+    el.status.className = "status" + (isError ? " err" : "");
+  }
+
+  function logLine(text) {
+    el.log.textContent += (el.log.textContent ? "\n" : "") + text;
+    el.log.scrollTop = el.log.scrollHeight;
+  }
+
+  // ---- code panel: same text that gets executed -----------------------
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function highlight(src) {
+    // Tags are swapped in through sentinels so the keyword pass cannot rewrite
+    // the class="..." attributes it just inserted.
+    var OPEN_C = "\u0001", OPEN_K = "\u0004", CLOSE = "\u0002";
+    var esc = escapeHtml(src);
+    esc = esc.replace(/"""[\s\S]*?"""/g, function (m) { return OPEN_C + m + CLOSE; });
+    esc = esc.replace(/(^|\n)([ \t]*#[^\n]*)/g, function (m, nl, body) { return nl + OPEN_C + body + CLOSE; });
+    esc = esc.replace(/\b(import|from|def|return|for|in|if|while|with|as|None|True|False)\b/g,
+                      function (m) { return OPEN_K + m + CLOSE; });
+    return esc
+      .replace(/\u0001/g, '<span class="c">')
+      .replace(/\u0004/g, '<span class="k">')
+      .replace(/\u0002/g, "</span>");
+  }
+
+  // ---- chart ----------------------------------------------------------
+  var ctx = el.canvas.getContext("2d");
+  var Y_MIN = 0.005, Y_MAX = 1.2;
+
+  function yPix(loss) {
+    var h = el.canvas.height, padTop = 14, padBot = 24;
+    var t = (Math.log10(Math.max(Y_MAX, Y_MIN)) - Math.log10(Math.max(loss, Y_MIN))) /
+            (Math.log10(Y_MAX) - Math.log10(Y_MIN));
+    return padTop + t * (h - padTop - padBot);
+  }
+
+  function drawChart() {
+    var c = el.canvas, w = c.width, h = c.height;
+    var padL = 8, padR = 8;
+    ctx.clearRect(0, 0, w, h);
+
+    // gridlines at 1.0 / 0.3 / 0.1 / 0.03 / 0.01
+    var marks = [1, 0.3, 0.1, 0.03, 0.01];
+    ctx.font = "20px ui-monospace, monospace";
+    ctx.textBaseline = "middle";
+    for (var i = 0; i < marks.length; i++) {
+      var y = yPix(marks[i]);
+      ctx.strokeStyle = "#efe9e1";
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      ctx.fillStyle = "#a9a29a";
+      ctx.fillText(marks[i] >= 0.1 ? marks[i].toFixed(1) : marks[i].toFixed(2), padL + 2, y - 9);
+    }
+
+    if (curve.length === 0) {
+      ctx.fillStyle = "#b8b1a7";
+      ctx.font = "22px -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("run the training to plot the loss", padL + 10, h / 2);
+      return;
+    }
+
+    var x0 = padL + 26, x1 = w - padR;
+    ctx.beginPath();
+    for (var j = 0; j < curve.length; j++) {
+      var x = x0 + (x1 - x0) * (j / Math.max(1, (TOTAL_EPOCHS / CHUNK) - 1));
+      var yy = yPix(curve[j]);
+      if (j === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+    }
+    ctx.strokeStyle = "#c2410c";
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    var lastX = x0 + (x1 - x0) * ((curve.length - 1) / Math.max(1, (TOTAL_EPOCHS / CHUNK) - 1));
+    var lastY = yPix(curve[curve.length - 1]);
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#c2410c";
+    ctx.fill();
+  }
+
+  // ---- runtime boot ---------------------------------------------------
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error("could not load " + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  async function boot() {
+    var errors = [];
+    for (var i = 0; i < MIRRORS.length; i++) {
+      try {
+        await loadScript(MIRRORS[i].js);
+        pyodide = await loadPyodide({ indexURL: MIRRORS[i].index });
+        break;
+      } catch (e) {
+        errors.push(String(e && e.message ? e.message : e));
+        pyodide = null;
+      }
+    }
+    if (!pyodide) throw new Error(errors.join(" | "));
+
+    var manifest = await (await fetch("lib/ember_src.json")).json();
+    var paths = Object.keys(manifest);
+    for (var i = 0; i < paths.length; i++) {
+      var p = paths[i];
+      var dir = "/" + p.substring(0, p.lastIndexOf("/"));
+      try { pyodide.FS.mkdirTree(dir); } catch (e) {}
+      pyodide.FS.writeFile("/" + p, manifest[p], { encoding: "utf8" });
+    }
+
+    pyodide.runPython("import sys\nif '/lib' not in sys.path:\n    sys.path.insert(0, '/lib')\n");
+
+    scriptText = await (await fetch("demo_script.py")).text();
+    el.code.innerHTML = highlight(scriptText);
+
+    var check = pyodide.runPython("import ember; ember.__version__");
+    setStatus("runtime ready · ember " + check + " · " + paths.length + " source files loaded");
+    el.run.disabled = false;
+    el.run.textContent = "Run training";
+  }
+
+  // ---- training loop --------------------------------------------------
+  function freshGlobals() {
+    var g = pyodide.runPython("{}");
+    g.set("__name__", "ember_demo");
+    pyodide.runPython(scriptText, { globals: g });
+    return g;
+  }
+
+  async function runTraining() {
+    if (busy) return;
+    busy = true;
+    el.run.disabled = true;
+    el.run.textContent = "Training…";
+    el.log.textContent = "";
+    el.pred.hidden = true;
+    curve = [];
+    drawChart();
+
+    try {
+      globals = freshGlobals();
+      var train = globals.get("train");
+
+      for (var epoch = 0; epoch < TOTAL_EPOCHS; epoch += CHUNK) {
+        var info = JSON.parse(train(CHUNK));
+        curve.push(info.loss);
+        el.epoch.textContent = String(info.epoch);
+        el.loss.textContent = info.loss.toFixed(4);
+        drawChart();
+        if (info.epoch % 300 === 0) logLine("epoch " + String(info.epoch).padStart(4, " ") + "  loss " + info.loss.toFixed(4));
+        await new Promise(function (r) { window.requestAnimationFrame(r); });
+      }
+
+      var result = JSON.parse(globals.get("classify")());
+      var body = el.pred.querySelector("tbody");
+      body.innerHTML = "";
+      result.rows.forEach(function (row) {
+        var tr = document.createElement("tr");
+        var hit = row.guess === row.truth;
+        tr.innerHTML =
+          "<td>[" + row.x[0].toFixed(0) + ", " + row.x[1].toFixed(0) + "]</td>" +
+          "<td>" + row.p0.toFixed(3) + "</td>" +
+          "<td>" + row.p1.toFixed(3) + "</td>" +
+          "<td>" + row.guess + "</td>" +
+          "<td>" + row.truth + "</td>" +
+          "<td class='" + (hit ? "ok" : "bad") + "'>" + (hit ? "&#10003;" : "&#10007;") + "</td>";
+        body.appendChild(tr);
+      });
+      el.pred.hidden = false;
+      el.acc.textContent = result.correct + "/" + result.total;
+      logLine("accuracy " + result.correct + "/" + result.total + " after " + TOTAL_EPOCHS + " epochs");
+      setStatus("done · " + TOTAL_EPOCHS + " epochs, " + curve.length + " plotted points");
+    } catch (err) {
+      setStatus("training failed — see the log", true);
+      logLine(String(err && err.message ? err.message : err));
+    } finally {
+      busy = false;
+      el.run.disabled = false;
+      el.run.textContent = "Run again";
+    }
+  }
+
+  el.run.addEventListener("click", runTraining);
+  drawChart();
+  boot().catch(function (err) {
+    setStatus("could not start the browser runtime", true);
+    el.run.textContent = "Unavailable";
+    logLine("The Python runtime failed to load (" + String(err && err.message ? err.message : err) + ").");
+    logLine("Everything else still works locally:");
+    logLine("  git clone https://github.com/WsNodeX/ember && cd ember");
+    logLine("  python docs/demo_script.py");
+  });
+})();
+</script>
+</body>
+</html>
