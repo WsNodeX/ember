@@ -5,6 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/github/stars/WsNodeX/ember?style=flat-square&color=111111&label=stars" alt="Stars">
   <img src="https://img.shields.io/github/v/release/WsNodeX/ember?style=flat-square&color=111111&label=release" alt="Release">
+  <img src="https://img.shields.io/github/actions/workflow/status/WsNodeX/ember/ci.yml?branch=main&style=flat-square&color=111111&label=CI" alt="CI">
   <img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT">
 </p>
 
@@ -84,9 +85,14 @@ other, in plain Python.
 ## Tests
 
 ```bash
-pip install pytest && python -m pytest -q
-# 60 passed in 1.25s
+python -m unittest discover -s tests
+# Ran 60 tests in 1.177s
+# OK
 ```
+
+CI runs this exact suite on Python 3.10-3.13, so the CI badge above is live,
+not decorative. The tests are plain `unittest`, so `python -m pytest -q`
+collects the same 60.
 
 Every operation is gradient-checked against central finite differences
 (`tests/utils.py`). If a backward pass is wrong, a test fails — that is the whole
