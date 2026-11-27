@@ -1,129 +1,19 @@
-<p align="center">
-  <em>A PyTorch-shaped framework in 1,450 lines of pure Python. No NumPy, no pip install.</em>
-</p>
+# ember
 
-<p align="center">
-  <img src="https://img.shields.io/github/stars/WsNodeX/ember?style=flat-square&color=111111&label=stars" alt="Stars">
-  <img src="https://img.shields.io/github/v/release/WsNodeX/ember?style=flat-square&color=111111&label=release" alt="Release">
-  <img src="https://img.shields.io/github/actions/workflow/status/WsNodeX/ember/ci.yml?branch=main&style=flat-square&color=111111&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT">
-</p>
+**A PyTorch-shaped autograd engine in 1,450 lines of pure Python.** No NumPy, zero deps.
 
----
-
-Reverse-mode autograd, layers, losses, an SGD optimizer and a data loader — built
-on nothing but the Python standard library. Written to be read end to end.
+![CI](https://img.shields.io/github/actions/workflow/status/WsNodeX/ember/ci.yml?branch=main&style=flat-square)
 
 ```mermaid
 graph LR
-  A[Tensor] -->|forward ops| B[loss]
-  B -->|backward| C[gradients]
-  C -->|SGD| A
+  T[Tensor] --> L[loss] --> G[grad] --> T
 ```
-
-**Live demo:** <https://wsnodex.github.io/ember/> trains the XOR network in your
-browser tab — the real library running under Pyodide, not a recording.
-
-## Quick start
 
 ```bash
 git clone https://github.com/WsNodeX/ember && cd ember
-python examples/fit_linear.py
+python examples/fit_linear.py   # recovered: y = 3.000 * x + 2.002
 ```
 
-```text
-epoch   0  loss=4.4556
-epoch 199  loss=0.0030
+Tensor autograd · Linear/ReLU/Softmax · MSE/CrossEntropy · SGD · DataLoader. Backward passes are gradient-checked, 60 tests, and `benchmark.py` measures the honest ~110x gap to NumPy.
 
-recovered: y = 3.000 * x + 2.002   (true: y = 3.000 * x + 2.000)
-fit error on weight: 0.0004, on bias: 0.0022
-```
-
-200 epochs in 0.58s. Or five lines, inline:
-
-```python
-import ember as eb
-
-x = eb.Tensor([2.0])
-y = (x * x).sum()
-y.backward()
-print(x.grad)          # [4.0]
-```
-
-XOR, which needs a hidden layer and a non-linearity:
-
-```bash
-python examples/xor_mlp.py     # accuracy: 4/4
-```
-
-## Why this exists
-
-`micrograd` teaches backprop on scalars. Ember is the next size up: the tensor
-supports matrices, so `Linear(2, 8)` and `CrossEntropyLoss` actually work, and
-there is a real optimizer and a real data loader.
-
-The tradeoff is that it is slow and it will stay slow — every op is a Python loop.
-That is the point. It is not a PyTorch competitor; it is the thing PyTorch is made
-of, small enough to hold in your head. If you need speed, use PyTorch. If you want
-to stop treating `.backward()` as magic, read this.
-
-## API
-
-| Name | What it is |
-|---|---|
-| `Tensor` | Differentiable scalar, vector or matrix — `.data`, `.grad`, `.backward()` |
-| `nn.Linear / ReLU / Sigmoid / Tanh / Softmax` | Layers and activations |
-| `nn.Sequential` | Compose modules |
-| `nn.MSELoss / CrossEntropyLoss / BCEWithLogitsLoss` | Losses with analytic backward |
-| `SGD` | Momentum, Nesterov, L2 weight decay |
-| `TensorDataset / DataLoader` | Mini-batching with shuffling |
-| `ember.array` | The pure-Python tensor backend, if you want to poke at it |
-
-Every op's forward math and its backward rule live in the same file, next to each
-other, in plain Python.
-
-## Tests
-
-```bash
-python -m unittest discover -s tests
-# Ran 60 tests in 1.177s
-# OK
-```
-
-CI runs this exact suite on Python 3.10-3.13, so the CI badge above is live,
-not decorative. The tests are plain `unittest`, so `python -m pytest -q`
-collects the same 60.
-
-Every operation is gradient-checked against central finite differences
-(`tests/utils.py`). If a backward pass is wrong, a test fails — that is the whole
-verification story, and it is why the engine is trustworthy enough to learn from.
-
-## Benchmark
-
-`benchmark.py` trains the same 1-16-1 ReLU MLP with both engines — identical
-weights, identical data, identical updates — and times them. Real output
-(Python 3.13.0, NumPy 2.2.5):
-
-```text
-engine     time   final loss
-ember      0.64s     0.057455
-numpy      0.01s     0.057455
-```
-
-NumPy is ~110× faster here, and that gap is the honest price of pure-Python
-loops. The part that matters is the loss column: both engines reach the same
-value to six decimal places, because they are running the same math. NumPy is
-only needed for the baseline column — Ember itself installs nothing.
-
-## Limitations
-
-- **Pure Python loops.** No NumPy, so matmul is a triple nested loop. It is slow,
-  and because the whole point is readability it stays slow.
-- **No GPU, no vectorisation, no plans for either.** Adding them means adding
-  NumPy, which defeats the premise.
-- **Not thread-safe.** The engine assumes a single writer.
-- **No convolutions or RNNs.** `Linear`, activations and losses only.
-
-## License
-
-MIT
+[Run it in a browser](https://wsnodex.github.io/ember/) · [Full guide](docs/GUIDE.md) · MIT
